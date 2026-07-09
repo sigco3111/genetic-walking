@@ -1,28 +1,1458 @@
-<!--
-  🚧 Under construction — OpenCode (MiniMax-M3) 가 다음 프롬프트로 작업할 예정:
-
-  "관절과 근육을 가진 무작위 형태의 막대기 생명체들이 걷기를 시도하다가
-   쓰러지는 과정을 보여주며, 가장 멀리 간 개체끼리 교배(Crossover)하고
-   돌연변이(Mutation)를 일으키는 유전 알고리즘을 통해 세대가 거듭될수록
-   점점 더 완벽하게 걷거나 뛰게 되는 진화 시뮬레이션을 만들어줘.
-   Implementation Advice: Use Matter.js (or Box2D) for the creature body
-   physics (joints, muscles). Implement a Genetic Algorithm in pure JS to
-   manage the population, selection, crossover, and mutation of the neural
-   network weights or muscle oscillation parameters. 모든 의존관계의 코드를
-   하나의 HTML에 담는 형태로 코드 작성."
-
-  자세한 내용은 README.md 참조.
--->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>유전 알고리즘 보행 · Genetic Walking Simulator</title>
+<title>🧬 유전 알고리즘 보행 시뮬레이터 · Genetic Walking</title>
+<style>
+  :root {
+    --bg: #0b0e15;
+    --bg2: #131825;
+    --bg3: #0f1320;
+    --fg: #e6e9f2;
+    --muted: #7d8597;
+    --dim: #4b5364;
+    --accent: #6ee7b7;
+    --accent2: #fb7185;
+    --accent3: #fcd34d;
+    --grid: #1f2436;
+    --line: #2a3149;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    font-feature-settings: "tnum";
+    overflow: hidden;
+  }
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+
+  header {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--grid);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    background: linear-gradient(180deg, var(--bg2), var(--bg));
+    flex-shrink: 0;
+  }
+  h1 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  h1 .accent { color: var(--accent); }
+  h1 .accent2 { color: var(--accent2); }
+  .stats { display: flex; gap: 18px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .stats .item { display: inline-flex; gap: 6px; align-items: baseline; }
+  .stats b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stats .best b { color: var(--accent); }
+  .stats .cur b { color: var(--accent3); }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  @media (min-width: 1100px) {
+    main { grid-template-columns: 1fr 340px; }
+  }
+
+  .canvas-wrap {
+    position: relative;
+    background:
+      radial-gradient(ellipse at 50% 110%, rgba(110, 231, 183, 0.05), transparent 60%),
+      radial-gradient(ellipse at 80% 0%, rgba(251, 113, 133, 0.04), transparent 50%),
+      var(--bg);
+    overflow: hidden;
+    min-height: 0;
+  }
+  #world { display: block; width: 100%; height: 100%; }
+
+  .side {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    border-left: 1px solid var(--grid);
+    background: var(--bg3);
+  }
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--grid);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .panel h3 {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  #chart { width: 100%; height: 130px; display: block; }
+
+  .controls { display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
+  .row label { color: var(--muted); flex: 1; }
+  .row input[type="range"] {
+    width: 130px;
+    accent-color: var(--accent);
+    background: transparent;
+  }
+  .row .val { color: var(--fg); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; font-weight: 600; }
+
+  .buttons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  button {
+    background: var(--bg3);
+    border: 1px solid var(--grid);
+    color: var(--fg);
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-weight: 500;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:active { transform: translateY(1px); }
+  button.primary {
+    background: var(--accent);
+    color: #0b1f17;
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+  button.primary:hover { background: #5dd4a4; color: #0b1f17; }
+
+  .legend { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; font-size: 11.5px; color: var(--muted); }
+  .swatch {
+    display: inline-block;
+    width: 14px; height: 10px;
+    border-radius: 2px;
+    align-self: center;
+  }
+
+  .info { font-size: 11.5px; line-height: 1.55; color: var(--muted); }
+  .info code {
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent);
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 10.5px;
+  }
+  .info b { color: var(--fg); font-weight: 600; }
+
+  .gene-list {
+    max-height: 220px;
+    overflow-y: auto;
+    font-size: 10.5px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    color: var(--muted);
+    line-height: 1.55;
+    padding: 4px;
+    background: var(--bg);
+    border-radius: 6px;
+  }
+  .gene-list .lbl { color: var(--accent2); }
+  .gene-list .val { color: var(--accent); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--accent);
+    font-size: 10.5px;
+    font-family: ui-monospace, monospace;
+    font-weight: 600;
+  }
+  .badge.warn { color: var(--accent3); }
+  .badge.bad { color: var(--accent2); }
+
+  /* Floating overlay on canvas */
+  .overlay {
+    position: absolute;
+    top: 12px; left: 12px;
+    background: rgba(11, 14, 21, 0.78);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--grid);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--muted);
+    pointer-events: none;
+    line-height: 1.6;
+  }
+  .overlay b { color: var(--fg); font-weight: 600; }
+  .overlay .big {
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+</style>
 </head>
 <body>
-<p style="font-family:system-ui;text-align:center;margin-top:20vh">
-🚧 Under construction. <a href="./README.md">README.md</a> 참조.
-</p>
+
+<header>
+  <h1>🧬 <span class="accent">유전 알고리즘</span> 보행 시뮬레이터 <span style="color:var(--muted);font-weight:400;font-size:13px">/ Genetic Walking Evolution</span></h1>
+  <div class="stats">
+    <span class="item">세대 <b id="stat-gen">0</b></span>
+    <span class="item">진행 <b id="stat-progress">0%</b></span>
+    <span class="item best">역대 최고 <b id="stat-best-all">0.0</b></span>
+    <span class="item cur">이번 세대 최고 <b id="stat-best-cur">0.0</b></span>
+    <span class="item">평균 <b id="stat-avg">0.0</b></span>
+  </div>
+</header>
+
+<main>
+  <div class="canvas-wrap">
+    <canvas id="world"></canvas>
+    <div class="overlay" id="overlay">
+      <div>Generation <b id="ov-gen">0</b></div>
+      <div class="big" id="ov-best">0.0</div>
+      <div>Best fitness this gen</div>
+    </div>
+  </div>
+
+  <aside class="side">
+    <div class="panel">
+      <h3>📈 Fitness 추이 (세대별)</h3>
+      <canvas id="chart"></canvas>
+    </div>
+
+    <div class="panel">
+      <h3>🎛️ 시뮬레이션 제어</h3>
+      <div class="controls">
+        <div class="row">
+          <label>시뮬 속도</label>
+          <input id="ctrl-speed" type="range" min="0.25" max="6" step="0.25" value="1.5">
+          <span class="val" id="lbl-speed">1.5×</span>
+        </div>
+        <div class="row">
+          <label>세대당 시간</label>
+          <input id="ctrl-time" type="range" min="4" max="20" step="1" value="10">
+          <span class="val" id="lbl-time">10s</span>
+        </div>
+        <div class="row">
+          <label>개체 수</label>
+          <input id="ctrl-pop" type="range" min="6" max="24" step="2" value="12">
+          <span class="val" id="lbl-pop">12</span>
+        </div>
+        <div class="row">
+          <label>돌연변이율</label>
+          <input id="ctrl-mut" type="range" min="0" max="0.5" step="0.02" value="0.15">
+          <span class="val" id="lbl-mut">15%</span>
+        </div>
+        <div class="buttons">
+          <button id="btn-play" class="primary">⏸ 일시정지</button>
+          <button id="btn-step">⏭ 한 세대</button>
+          <button id="btn-reset">🔄 리셋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>🧬 시각화 범례</h3>
+      <div class="legend">
+        <span class="swatch" style="background:#94a3b8"></span><span>뼈대 (회전 강체)</span>
+        <span class="swatch" style="background:#fb7185"></span><span>근육 (수축기)</span>
+        <span class="swatch" style="background:#6ee7b7"></span><span>신장근 (이완기)</span>
+        <span class="swatch" style="background:#fcd34d;border:1px solid #f59e0b"></span><span>현재 최고 개체</span>
+        <span class="swatch" style="background:#1f2937;border:1px solid #475569"></span><span>관절</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>📝 알고리즘</h3>
+      <p class="info">
+        게놈 = <code>Float32Array(30)</code> (몸 비율 6 + 근육쌍 8 × 진폭/주파수/위상 3)<br>
+        Fitness = <code>headX<sub>max</sub> − startX</code> (오른쪽으로 진행한 최대 거리)<br>
+        <b>토너먼트 선택</b>(k=3) → <b>균등 교배</b> → <b>가우시안 돌연변이</b><br>
+        매 세대 최고 1개체는 엘리트로 보존 (elitism=1)
+      </p>
+    </div>
+
+    <div class="panel" id="best-panel" style="display:none">
+      <h3>👑 현재 최고 개체 <span class="badge" id="best-id">#0</span></h3>
+      <div class="gene-list" id="gene-list"></div>
+    </div>
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const { Engine, World, Bodies, Body, Composite, Constraint, Composite: C } = Matter;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Configuration
+  // ─────────────────────────────────────────────────────────────────
+  const CONFIG = {
+    popSize: 12,
+    genTime: 10,        // seconds per generation
+    speed: 1.5,         // physics steps per frame
+    mutRate: 0.15,
+    elitism: 1,
+    tournamentK: 3,
+    gravityY: 1.0,
+    timestep: 1000 / 60, // ms per physics step
+    physicsScale: 1,    // 1 px = 1 unit
+    groundY: 480,       // world Y position of ground top
+    laneWidth: 130,
+    canvasPad: 80,      // left padding so creatures don't start at x=0
+  };
+
+  const PHYSICS = {
+    boneDensity: 0.0008,
+    boneFriction: 0.4,
+    boneFrictionAir: 0.015,
+    boneRestitution: 0.02,
+    jointStiffness: 0.95,
+    jointDamping: 0.15,
+    muscleStiffness: 0.05,        // (visual muscle constraints only)
+    muscleDamping: 0.3,
+    footFriction: 0.98,
+    footRestitution: 0.0,
+  };
+
+  // ─────────────────────────────────────────────────────────────────
+  // Genome Layout
+  // Indices 0..5 = body proportions
+  // Indices 6..29 = 8 muscle pairs × (amp, freq, phase)
+  // ─────────────────────────────────────────────────────────────────
+  const GENE = {
+    TORSO_LEN: 0,
+    HEAD_LEN: 1,
+    THIGH_LEN: 2,
+    SHIN_LEN: 3,
+    FOOT_LEN: 4,
+    BONE_W: 5,
+    MUSCLE_BASE: 6,
+  };
+  const N_MUSCLES = 8;
+  const GENOME_SIZE = GENE.MUSCLE_BASE + N_MUSCLES * 3;
+
+  // Muscle pair definitions (index → which joint)
+  // 0: left hip, 1: right hip, 2: left knee, 3: right knee,
+  // 4: left ankle, 5: right ankle, 6: torso sway, 7: torso forward/back
+  const MUSCLE_NAMES = [
+    'Hip-L (앞/뒤)', 'Hip-R (앞/뒤)',
+    'Knee-L (꺾/폄)', 'Knee-R (꺾/폄)',
+    'Ankle-L (발목)', 'Ankle-R (발목)',
+    'Torso 좌우기울기', 'Torso 앞뒤기울기',
+  ];
+
+  // ─────────────────────────────────────────────────────────────────
+  // Genome
+  // ─────────────────────────────────────────────────────────────────
+  class Genome {
+    constructor() { this.genes = new Float32Array(GENOME_SIZE); }
+
+    static random() {
+      const g = new Genome();
+      const r = (a, b) => a + Math.random() * (b - a);
+      g.genes[GENE.TORSO_LEN] = r(28, 48);
+      g.genes[GENE.HEAD_LEN] = r(10, 18);
+      g.genes[GENE.THIGH_LEN] = r(22, 38);
+      g.genes[GENE.SHIN_LEN] = r(22, 38);
+      g.genes[GENE.FOOT_LEN] = r(10, 22);
+      g.genes[GENE.BONE_W] = r(4, 7);
+      // Phase hint: pair opposing sides with offset (~180°) so first-generation
+      // creatures have a chance at walking-like alternation.
+      // Index 0,2,4 = left side (hip L, knee L, ankle L) — phase = base
+      // Index 1,3,5 = right side — phase = base + π (alternating)
+      // Index 6,7 = torso balance — independent phases
+      const basePhase = Math.random() * Math.PI * 2;
+      for (let i = 0; i < N_MUSCLES; i++) {
+        const b = GENE.MUSCLE_BASE + i * 3;
+        g.genes[b] = r(0.6, 2.0);   // amplitude (torque magnitude)
+        g.genes[b + 1] = r(0.7, 1.8); // frequency Hz (walking-pace range)
+        if (i <= 5) {
+          // Pair left/right sides in opposition
+          g.genes[b + 2] = (i % 2 === 0) ? basePhase : basePhase + Math.PI;
+        } else {
+          g.genes[b + 2] = Math.random() * Math.PI * 2;
+        }
+      }
+      return g;
+    }
+
+    clone() {
+      const g = new Genome();
+      g.genes.set(this.genes);
+      return g;
+    }
+
+    static crossover(a, b) {
+      const child = new Genome();
+      const cg = child.genes;
+      const ag = a.genes, bg = b.genes;
+      for (let i = 0; i < GENOME_SIZE; i++) {
+        cg[i] = Math.random() < 0.5 ? ag[i] : bg[i];
+      }
+      return child;
+    }
+
+    // Blend crossover (BLX-α) for continuous params — slightly smoother
+    static blendCrossover(a, b, alpha = 0.2) {
+      const child = new Genome();
+      const cg = child.genes;
+      const ag = a.genes, bg = b.genes;
+      for (let i = 0; i < GENOME_SIZE; i++) {
+        if (Math.random() < 0.5) {
+          const lo = Math.min(ag[i], bg[i]);
+          const hi = Math.max(ag[i], bg[i]);
+          const span = hi - lo;
+          cg[i] = lo - alpha * span + Math.random() * (1 + 2 * alpha) * span;
+        } else {
+          cg[i] = Math.random() < 0.5 ? ag[i] : bg[i];
+        }
+      }
+      return child;
+    }
+
+    mutate(rate = CONFIG.mutRate, scale = 0.2) {
+      // Gaussian-ish perturbation
+      const gauss = () => {
+        // Box-Muller, clamped
+        let u = 0, v = 0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        const x = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        return Math.max(-3, Math.min(3, x));
+      };
+      const g = this.genes;
+      for (let i = 0; i < GENOME_SIZE; i++) {
+        if (Math.random() < rate) {
+          if (i < GENE.MUSCLE_BASE) {
+            // body proportions: small relative mutation
+            const ratio = Math.exp(gauss() * scale * 0.5);
+            g[i] *= ratio;
+            // clamp to reasonable ranges
+            if (i === GENE.TORSO_LEN) g[i] = Math.max(15, Math.min(70, g[i]));
+            else if (i === GENE.HEAD_LEN) g[i] = Math.max(6, Math.min(28, g[i]));
+            else if (i === GENE.THIGH_LEN) g[i] = Math.max(12, Math.min(55, g[i]));
+            else if (i === GENE.SHIN_LEN) g[i] = Math.max(12, Math.min(55, g[i]));
+            else if (i === GENE.FOOT_LEN) g[i] = Math.max(6, Math.min(35, g[i]));
+            else if (i === GENE.BONE_W) g[i] = Math.max(2, Math.min(10, g[i]));
+          } else if ((i - GENE.MUSCLE_BASE) % 3 === 0) {
+            // amplitude (positive)
+            g[i] = Math.max(0, Math.min(2.0, g[i] * Math.exp(gauss() * scale)));
+          } else if ((i - GENE.MUSCLE_BASE) % 3 === 1) {
+            // frequency
+            g[i] = Math.max(0.1, Math.min(5.0, g[i] * Math.exp(gauss() * scale)));
+          } else {
+            // phase: wrap
+            g[i] = ((g[i] + gauss() * scale * Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+          }
+        }
+      }
+    }
+  }
+
+// ─────────────────────────────────────────────────────────────────
+// Creature — one body in its own physics lane
+// ─────────────────────────────────────────────────────────────────
+class Creature {
+  constructor(genome, laneIndex, originX) {
+    this.genome = genome;
+    this.laneIndex = laneIndex;
+    this.originX = originX;       // spawn X
+    this.startX = originX;
+    this.maxX = originX;
+    this.sustainedDist = 0;       // sum of forward deltas (rewards walking, not jumping once)
+    this.alive = true;
+    this.time = 0;                // local sim time
+    this.steps = 0;
+
+    this.engine = null;
+    this.world = null;
+    this.bodies = null;
+    this.muscles = null;
+    this.torqueMuscles = null;    // direct torque application targets
+    this.lastPos = null;
+    this.idleFrames = 0;
+
+    this.build();
+  }
+
+    build() {
+      const engine = Engine.create({
+        gravity: { x: 0, y: CONFIG.gravityY, scale: 0.001 },
+      });
+      const world = engine.world;
+      this.engine = engine;
+      this.world = world;
+
+      const g = this.genome.genes;
+      const torsoLen = g[GENE.TORSO_LEN];
+      const headLen = g[GENE.HEAD_LEN];
+      const thighLen = g[GENE.THIGH_LEN];
+      const shinLen = g[GENE.SHIN_LEN];
+      const footLen = g[GENE.FOOT_LEN];
+      const boneW = g[GENE.BONE_W];
+      const footH = boneW * 0.7;
+
+      const cx = this.originX;
+      // Compute hip Y so feet sit on the ground (not buried in it)
+      const hipY = CONFIG.groundY - footH - shinLen - thighLen + 2;
+      const hipX = cx;
+
+      // Ground segment for this lane
+      const laneHalf = CONFIG.laneWidth / 2;
+      const ground = Bodies.rectangle(cx, CONFIG.groundY + 25, laneHalf * 2 + 40, 50, {
+        isStatic: true,
+        friction: 0.95,
+        frictionStatic: 1.0,
+        restitution: 0.0,
+        label: `ground_${this.laneIndex}`,
+      });
+      // Side walls (so creature can't drift into neighbors)
+      const wallL = Bodies.rectangle(cx - laneHalf, CONFIG.groundY - 50, 8, 200, {
+        isStatic: true, friction: 0.0, restitution: 0.0,
+        label: `wall_${this.laneIndex}`,
+      });
+      const wallR = Bodies.rectangle(cx + laneHalf, CONFIG.groundY - 50, 8, 200, {
+        isStatic: true, friction: 0.0, restitution: 0.0,
+        label: `wall_${this.laneIndex}`,
+      });
+
+      // Body parts
+      // Torso: vertical rectangle, centered above hip
+      const torso = Bodies.rectangle(hipX, hipY - torsoLen / 2, boneW, torsoLen, {
+        density: PHYSICS.boneDensity * 1.4,
+        friction: PHYSICS.boneFriction,
+        frictionAir: PHYSICS.boneFrictionAir,
+        restitution: PHYSICS.boneRestitution,
+      });
+      // Head
+      const head = Bodies.rectangle(hipX, hipY - torsoLen - headLen / 2, boneW * 1.4, headLen, {
+        density: PHYSICS.boneDensity * 0.9,
+        friction: PHYSICS.boneFriction,
+        frictionAir: PHYSICS.boneFrictionAir,
+        restitution: PHYSICS.boneRestitution,
+      });
+
+      // Thighs: hang from hip, length thighLen
+      const lThigh = Bodies.rectangle(hipX - 6, hipY + thighLen / 2, boneW, thighLen, {
+        density: PHYSICS.boneDensity,
+        friction: PHYSICS.boneFriction,
+        frictionAir: PHYSICS.boneFrictionAir,
+        restitution: PHYSICS.boneRestitution,
+        angle: 0.0,
+      });
+      const rThigh = Bodies.rectangle(hipX + 6, hipY + thighLen / 2, boneW, thighLen, {
+        density: PHYSICS.boneDensity,
+        friction: PHYSICS.boneFriction,
+        frictionAir: PHYSICS.boneFrictionAir,
+        restitution: PHYSICS.boneRestitution,
+        angle: 0.0,
+      });
+
+      // Knees at hipY + thighLen
+      const kneeY = hipY + thighLen;
+      const lShin = Bodies.rectangle(hipX - 6, kneeY + shinLen / 2, boneW * 0.9, shinLen, {
+        density: PHYSICS.boneDensity,
+        friction: PHYSICS.boneFriction,
+        frictionAir: PHYSICS.boneFrictionAir,
+        restitution: PHYSICS.boneRestitution,
+      });
+      const rShin = Bodies.rectangle(hipX + 6, kneeY + shinLen / 2, boneW * 0.9, shinLen, {
+        density: PHYSICS.boneDensity,
+        friction: PHYSICS.boneFriction,
+        frictionAir: PHYSICS.boneFrictionAir,
+        restitution: PHYSICS.boneRestitution,
+      });
+
+      // Feet at kneeY + shinLen, sitting on ground
+      const footY = kneeY + shinLen;
+      const lFoot = Bodies.rectangle(hipX - 12, footY + footH / 2, footLen, footH, {
+        density: PHYSICS.boneDensity * 0.7,
+        friction: PHYSICS.footFriction,
+        frictionStatic: 1.2,
+        frictionAir: PHYSICS.boneFrictionAir,
+        restitution: PHYSICS.footRestitution,
+      });
+      const rFoot = Bodies.rectangle(hipX + 12, footY + footH / 2, footLen, footH, {
+        density: PHYSICS.boneDensity * 0.7,
+        friction: PHYSICS.footFriction,
+        frictionStatic: 1.2,
+        frictionAir: PHYSICS.boneFrictionAir,
+        restitution: PHYSICS.footRestitution,
+      });
+
+      World.add(world, [ground, wallL, wallR, torso, head, lThigh, rThigh, lShin, rShin, lFoot, rFoot]);
+
+      this.bodies = { torso, head, lThigh, rThigh, lShin, rShin, lFoot, rFoot };
+
+      // ── Joints (rigid connections) ──
+      const j = (bodyA, pointA, bodyB, pointB, stiff = PHYSICS.jointStiffness) => {
+        return Constraint.create({
+          bodyA, pointA, bodyB, pointB,
+          stiffness: stiff,
+          damping: PHYSICS.jointDamping,
+          length: 0,
+        });
+      };
+
+      // Head-neck
+      const neckA = Constraint.create({
+        bodyA: torso, pointA: { x: 0, y: -torsoLen / 2 },
+        bodyB: head, pointB: { x: 0, y: headLen / 2 },
+        stiffness: 0.95, damping: 0.1, length: 0,
+      });
+
+      // Hip joints (torso-thigh)
+      const hipL = j(torso, { x: -4, y: torsoLen / 2 }, lThigh, { x: 0, y: -thighLen / 2 });
+      const hipR = j(torso, { x: 4, y: torsoLen / 2 }, rThigh, { x: 0, y: -thighLen / 2 });
+
+      // Knee joints (thigh-shin)
+      const kneeL = j(lThigh, { x: 0, y: thighLen / 2 }, lShin, { x: 0, y: -shinLen / 2 });
+      const kneeR = j(rThigh, { x: 0, y: thighLen / 2 }, rShin, { x: 0, y: -shinLen / 2 });
+
+      // Ankle joints (shin-foot) — foot points slightly forward
+      const ankleL = j(lShin, { x: 0, y: shinLen / 2 }, lFoot, { x: footLen / 3, y: 0 });
+      const ankleR = j(rShin, { x: 0, y: shinLen / 2 }, rFoot, { x: -footLen / 3, y: 0 });
+
+      World.add(world, [neckA, hipL, hipR, kneeL, kneeR, ankleL, ankleR]);
+
+      // ── Muscles (direct torque application) ──
+      // Each muscle applies an oscillating torque force to a target body at a
+      // lever-arm offset. This is more reliable than constraint-oscillation
+      // because we can directly scale torque magnitude. We also keep a
+      // visual "muscle line" between two anchor points for pretty rendering.
+      const muscles = [];
+      const torqueMuscles = [];
+
+      // Visual muscle pair (constraints, purely cosmetic, no significant force)
+      // Signature: (parent, child, attachA1, attachB1, attachA2, attachB2, baseLen)
+      const visPair = (parent, child, attachA1, attachB1, attachA2, attachB2, baseLen) => {
+        const m1 = Constraint.create({
+          bodyA: parent, pointA: attachA1,
+          bodyB: child, pointB: attachB1,
+          stiffness: 0.005,    // very soft — purely visual
+          damping: 0.5,
+          length: baseLen,
+          render: { visible: false },
+        });
+        const m2 = Constraint.create({
+          bodyA: parent, pointA: attachA2,
+          bodyB: child, pointB: attachB2,
+          stiffness: 0.005,
+          damping: 0.5,
+          length: baseLen,
+          render: { visible: false },
+        });
+        muscles.push({ flexor: m1, extensor: m2, baseLen });
+      };
+
+      // Torque muscle: applies oscillating force at a lever point on target body.
+      // leverOffset is in body-local coords (relative to body center).
+      // sign: +1 for one direction, -1 for the other (antagonistic pairs)
+      const torqueMuscle = (targetBody, leverOffset, sign, ampIdx, freqIdx, phaseIdx) => {
+        torqueMuscles.push({
+          body: targetBody,
+          leverOffset,       // {x, y} in body local frame
+          sign,
+          amp: g[ampIdx],
+          freq: g[freqIdx],
+          phase: g[phaseIdx],
+        });
+      };
+
+      // Lever-arm positions for each joint (body-local coords)
+      // Hip: apply force at the far end of the thigh for max torque
+      // Knee: apply force at the far end of the shin for max torque
+      // Ankle: apply force at the far end of the foot for max torque
+
+      // 0: left hip flexor/extensor — torque on lThigh
+      torqueMuscle(lThigh, { x: 0, y: thighLen * 0.45 }, +1,
+        GENE.MUSCLE_BASE + 0 * 3, GENE.MUSCLE_BASE + 0 * 3 + 1, GENE.MUSCLE_BASE + 0 * 3 + 2);
+      // 1: right hip
+      torqueMuscle(rThigh, { x: 0, y: thighLen * 0.45 }, +1,
+        GENE.MUSCLE_BASE + 1 * 3, GENE.MUSCLE_BASE + 1 * 3 + 1, GENE.MUSCLE_BASE + 1 * 3 + 2);
+
+      // 2: left knee
+      torqueMuscle(lShin, { x: 0, y: shinLen * 0.45 }, +1,
+        GENE.MUSCLE_BASE + 2 * 3, GENE.MUSCLE_BASE + 2 * 3 + 1, GENE.MUSCLE_BASE + 2 * 3 + 2);
+      // 3: right knee
+      torqueMuscle(rShin, { x: 0, y: shinLen * 0.45 }, +1,
+        GENE.MUSCLE_BASE + 3 * 3, GENE.MUSCLE_BASE + 3 * 3 + 1, GENE.MUSCLE_BASE + 3 * 3 + 2);
+
+      // 4: left ankle
+      torqueMuscle(lFoot, { x: footLen * 0.4, y: 0 }, +1,
+        GENE.MUSCLE_BASE + 4 * 3, GENE.MUSCLE_BASE + 4 * 3 + 1, GENE.MUSCLE_BASE + 4 * 3 + 2);
+      // 5: right ankle
+      torqueMuscle(rFoot, { x: -footLen * 0.4, y: 0 }, +1,
+        GENE.MUSCLE_BASE + 5 * 3, GENE.MUSCLE_BASE + 5 * 3 + 1, GENE.MUSCLE_BASE + 5 * 3 + 2);
+
+      // 6: torso sway (roll) — lateral lean
+      torqueMuscle(torso, { x: 0, y: -torsoLen * 0.4 }, +1,
+        GENE.MUSCLE_BASE + 6 * 3, GENE.MUSCLE_BASE + 6 * 3 + 1, GENE.MUSCLE_BASE + 6 * 3 + 2);
+      // 7: torso pitch (forward/back lean)
+      torqueMuscle(torso, { x: 0, y: -torsoLen * 0.4 }, +1,
+        GENE.MUSCLE_BASE + 7 * 3, GENE.MUSCLE_BASE + 7 * 3 + 1, GENE.MUSCLE_BASE + 7 * 3 + 2);
+
+      // Visual muscle lines (cosmetic, between torso and head/limbs)
+      const visHipY = torsoLen / 2;
+      const visThighY = -thighLen / 2 + 4;
+      const visShinTopY = -shinLen / 2 + 4;
+      const visShinBotY = shinLen / 2 - 4;
+      const visFootY = -boneW * 0.3;
+
+      // Hip visual
+      visPair(torso, lThigh,
+        { x: -3, y: visHipY - 2 }, { x: -boneW / 2, y: visThighY },
+        { x: -3, y: visHipY + 4 }, { x: boneW / 2, y: visThighY }, 12);
+      visPair(torso, rThigh,
+        { x: 3, y: visHipY - 2 }, { x: boneW / 2, y: visThighY },
+        { x: 3, y: visHipY + 4 }, { x: -boneW / 2, y: visThighY }, 12);
+      // Knee visual
+      visPair(lThigh, lShin,
+        { x: -boneW / 2 - 2, y: 2 }, { x: -boneW / 2, y: visShinTopY },
+        { x: boneW / 2 + 2, y: 2 }, { x: boneW / 2, y: visShinTopY }, 10);
+      visPair(rThigh, rShin,
+        { x: boneW / 2 + 2, y: 2 }, { x: boneW / 2, y: visShinTopY },
+        { x: -boneW / 2 - 2, y: 2 }, { x: -boneW / 2, y: visShinTopY }, 10);
+      // Ankle visual
+      visPair(lShin, lFoot,
+        { x: -boneW / 2, y: visShinBotY }, { x: -footLen / 3, y: visFootY },
+        { x: boneW / 2, y: visShinBotY }, { x: footLen / 3, y: visFootY }, 8);
+      visPair(rShin, rFoot,
+        { x: boneW / 2, y: visShinBotY }, { x: footLen / 3, y: visFootY },
+        { x: -boneW / 2, y: visShinBotY }, { x: -footLen / 3, y: visFootY }, 8);
+      // Torso visual
+      visPair(torso, head,
+        { x: -boneW / 2 - 1, y: -torsoLen / 2 + 4 }, { x: -boneW * 0.7, y: headLen / 2 - 2 },
+        { x: boneW / 2 + 1, y: -torsoLen / 2 + 4 }, { x: boneW * 0.7, y: headLen / 2 - 2 }, 8);
+      visPair(torso, head,
+        { x: 0, y: -torsoLen / 2 + 6 }, { x: 0, y: headLen / 2 - 2 },
+        { x: 0, y: -torsoLen / 2 + 6 }, { x: 0, y: headLen / 2 - 2 }, 6);
+
+      World.add(world, muscles.flatMap(m => [m.flexor, m.extensor]));
+      this.muscles = muscles;
+      this.torqueMuscles = torqueMuscles;
+
+      this.lastPos = { x: hipX, y: hipY };
+    }
+
+    // Update muscles based on time, then step physics
+    step(dt) {
+      this.time += dt;
+      this.steps++;
+
+      const t = this.time;
+
+      // ── Visual muscles: oscillate rest length for pretty rendering ──
+      for (const m of this.muscles) {
+        const s = Math.sin(2 * Math.PI * 0.8 * t + (this.laneIndex * 0.4));
+        m.flexor.length = Math.max(1, m.baseLen - 0.5 * s);
+        m.extensor.length = Math.max(1, m.baseLen + 0.5 * s);
+      }
+
+      // ── Muscle-driven torques ──
+      // Apply oscillating angular velocity to each muscle's target body.
+      // AV_MAX controls peak angular velocity per step (rad/step).
+      // 0.04 ≈ 2.4 rad/s peak = ~140°/s (walking pace).
+      const AV_MAX = 0.04;
+      for (const tm of this.torqueMuscles) {
+        const s = Math.sin(2 * Math.PI * tm.freq * t + tm.phase);
+        const targetAV = s * tm.amp * tm.sign * AV_MAX;
+        Body.setAngularVelocity(tm.body, targetAV);
+      }
+
+      // Step physics
+      Engine.update(this.engine, dt * 1000);
+
+      // Track fitness & aliveness
+      const headX = this.bodies.head.position.x;
+      if (headX > this.maxX) this.maxX = headX;
+      // Track sustained distance — sum of forward deltas (rewards actual locomotion)
+      if (this.lastPos !== null) {
+        const dx = headX - this.lastPos.x;
+        if (dx > 0) this.sustainedDist += dx;
+      }
+
+      // Detect dead (head below ground a lot)
+      const headY = this.bodies.head.position.y;
+      if (headY > CONFIG.groundY + 60) {
+        this.alive = false;
+      }
+      // Detect idle (not moving much)
+      const dx = headX - this.lastPos.x;
+      if (Math.abs(dx) < 0.4 && t > 1.5) {
+        this.idleFrames++;
+      } else {
+        this.idleFrames = 0;
+      }
+      if (this.idleFrames > 90) this.alive = false; // gave up
+      this.lastPos.x = headX;
+    }
+
+    fitness() {
+      // Combined fitness rewards both peak distance AND sustained walking.
+      // Walking > falling — sustainedDist gets higher weight than maxDist.
+      const maxDist = Math.max(0, this.maxX - this.startX);
+      const sustDist = Math.max(0, this.sustainedDist);
+      // Weight: max=0.4 (rewards peak), sustained=0.9 (rewards actual walking gait)
+      let score = maxDist * 0.4 + sustDist * 0.9;
+      // Bonus for staying alive the whole time
+      if (this.alive) score *= 1.15;
+      return score;
+    }
+
+    destroy() {
+      try {
+        World.clear(this.world, false);
+        Engine.clear(this.engine);
+      } catch (e) {}
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Genetic Algorithm
+  // ─────────────────────────────────────────────────────────────────
+  class GA {
+    constructor() {
+      this.population = [];        // current Genomes
+      this.creatures = [];         // current Creatures (parallel to population)
+      this.generation = 0;
+      this.bestEver = 0;
+      this.bestGenomeEver = null;
+      this.history = [];           // [{gen, best, avg}]
+      this.genTime = 0;            // elapsed seconds in current generation
+    }
+
+    seed(n) {
+      this.population = [];
+      for (let i = 0; i < n; i++) {
+        this.population.push(Genome.random());
+      }
+    }
+
+    spawnCreatures() {
+      // Build creatures spaced across canvas
+      const n = this.population.length;
+      const startX = CONFIG.canvasPad + CONFIG.laneWidth / 2;
+      this.creatures = this.population.map((g, i) => {
+        return new Creature(g, i, startX + i * CONFIG.laneWidth);
+      });
+      this.genTime = 0;
+    }
+
+    step(dt) {
+      this.genTime += dt;
+      let allDone = true;
+      for (const c of this.creatures) {
+        if (c.alive) {
+          c.step(dt);
+          if (c.alive) allDone = false;
+        }
+      }
+      return allDone || this.genTime >= CONFIG.genTime;
+    }
+
+    evolve() {
+      const fits = this.creatures.map(c => c.fitness());
+      const sortedIdx = fits.map((f, i) => [f, i]).sort((a, b) => b[0] - a[0]).map(p => p[1]);
+
+      const bestFit = fits[sortedIdx[0]];
+      const avgFit = fits.reduce((a, b) => a + b, 0) / fits.length;
+      const bestG = this.population[sortedIdx[0]];
+
+      if (bestFit > this.bestEver) {
+        this.bestEver = bestFit;
+        this.bestGenomeEver = bestG.clone();
+      }
+      this.history.push({ gen: this.generation, best: bestFit, avg: avgFit });
+
+      // Build next generation
+      const next = [];
+      // Elitism: keep top N (cloned, not mutated)
+      for (let e = 0; e < CONFIG.elitism; e++) {
+        next.push(this.population[sortedIdx[e]].clone());
+      }
+
+      // Fill rest with tournament + crossover + mutation
+      const tournament = () => {
+        let best = null, bestF = -Infinity;
+        for (let i = 0; i < CONFIG.tournamentK; i++) {
+          const cand = Math.floor(Math.random() * this.population.length);
+          if (fits[cand] > bestF) { bestF = fits[cand]; best = this.population[cand]; }
+        }
+        return best;
+      };
+
+      while (next.length < this.population.length) {
+        const p1 = tournament();
+        const p2 = tournament();
+        // Mix of blend (mostly) and uniform crossover
+        const child = Math.random() < 0.7
+          ? Genome.blendCrossover(p1, p2, 0.15)
+          : Genome.crossover(p1, p2);
+        child.mutate(CONFIG.mutRate, 0.2);
+        next.push(child);
+      }
+
+      // Inject 1 fresh random immigrant every 5 generations to maintain diversity
+      if (this.generation > 0 && this.generation % 5 === 0 && next.length > 2) {
+        next[next.length - 1] = Genome.random();
+      }
+
+      // Cleanup old creatures
+      for (const c of this.creatures) c.destroy();
+
+      this.population = next;
+      this.generation++;
+      this.spawnCreatures();
+
+      return { bestFit, avgFit, bestGenome: bestG };
+    }
+
+    reset(popSize = CONFIG.popSize) {
+      for (const c of this.creatures) c.destroy();
+      this.population = [];
+      this.creatures = [];
+      this.generation = 0;
+      this.bestEver = 0;
+      this.bestGenomeEver = null;
+      this.history = [];
+      CONFIG.popSize = popSize;
+      this.seed(popSize);
+      this.spawnCreatures();
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Renderer
+  // ─────────────────────────────────────────────────────────────────
+  class Renderer {
+    constructor(worldCanvas, chartCanvas) {
+      this.worldCanvas = worldCanvas;
+      this.wctx = worldCanvas.getContext('2d');
+      this.chartCanvas = chartCanvas;
+      this.cctx = chartCanvas.getContext('2d');
+      this.dpr = window.devicePixelRatio || 1;
+      this.resize();
+    }
+
+    resize() {
+      [this.worldCanvas, this.chartCanvas].forEach(c => {
+        const r = c.getBoundingClientRect();
+        c.width = Math.floor(r.width * this.dpr);
+        c.height = Math.floor(r.height * this.dpr);
+      });
+    }
+
+    drawWorld(creatures, bestIdx, scrollX = 0, scrollY = 0, zoom = 1) {
+      const ctx = this.wctx;
+      const w = this.worldCanvas.width;
+      const h = this.worldCanvas.height;
+
+      ctx.fillStyle = '#0b0e15';
+      ctx.fillRect(0, 0, w, h);
+
+      // Grid (faint vertical lines for distance reference)
+      ctx.strokeStyle = 'rgba(31, 36, 54, 0.6)';
+      ctx.lineWidth = 1;
+      const gridStep = 100 * this.dpr;
+      const offset = (scrollX * this.dpr) % gridStep;
+      for (let x = -offset; x < w; x += gridStep) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      // Horizontal grid
+      for (let y = (h * 0.5) % gridStep; y < h; y += gridStep) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Distance markers (every 200 world units)
+      ctx.fillStyle = 'rgba(125, 133, 151, 0.5)';
+      ctx.font = `${10 * this.dpr}px ui-monospace, monospace`;
+      ctx.textAlign = 'left';
+      const startOffset = Math.floor(scrollX / 200) * 200;
+      for (let d = startOffset; d < scrollX + w / zoom; d += 200) {
+        const sx = (d - scrollX) * zoom * this.dpr;
+        if (sx < 0 || sx > w) continue;
+        ctx.fillText(`${d}px`, sx + 4, h - 6);
+      }
+
+      // Draw each creature
+      for (let i = 0; i < creatures.length; i++) {
+        this.drawCreature(ctx, creatures[i], scrollX, scrollY, zoom, i === bestIdx);
+      }
+
+      // Header strip
+      ctx.fillStyle = 'rgba(11, 14, 21, 0.4)';
+      ctx.fillRect(0, 0, w, 28 * this.dpr);
+    }
+
+    drawCreature(ctx, c, scrollX, scrollY, zoom, isBest) {
+      const dpr = this.dpr;
+      const Z = zoom * dpr;
+      const SX = (x) => (x - scrollX) * Z;
+      const SY = (y) => (y - scrollY) * Z;
+
+      const boneColor = isBest ? '#fcd34d' : '#94a3b8';
+      const boneOutline = isBest ? '#f59e0b' : '#475569';
+      const muscleFlex = isBest ? '#fda4af' : '#fb7185';
+      const muscleExt = isBest ? '#86efac' : '#6ee7b7';
+
+      const b = c.bodies;
+
+      // ── Draw muscles first (behind bones) ──
+      ctx.lineCap = 'round';
+      for (const m of c.muscles) {
+        const a = m.flexor;
+        const b1 = m.extensor;
+
+        const ax = a.bodyA.position.x + (a.pointA.x * Math.cos(a.bodyA.angle) - a.pointA.y * Math.sin(a.bodyA.angle));
+        const ay = a.bodyA.position.y + (a.pointA.x * Math.sin(a.bodyA.angle) + a.pointA.y * Math.cos(a.bodyA.angle));
+        const bx = a.bodyB.position.x + (a.pointB.x * Math.cos(a.bodyB.angle) - a.pointB.y * Math.sin(a.bodyB.angle));
+        const by = a.bodyB.position.y + (a.pointB.x * Math.sin(a.bodyB.angle) + a.pointB.y * Math.cos(a.bodyB.angle));
+
+        const ax2 = b1.bodyA.position.x + (b1.pointA.x * Math.cos(b1.bodyA.angle) - b1.pointA.y * Math.sin(b1.bodyA.angle));
+        const ay2 = b1.bodyA.position.y + (b1.pointA.x * Math.sin(b1.bodyA.angle) + b1.pointA.y * Math.cos(b1.bodyA.angle));
+        const bx2 = b1.bodyB.position.x + (b1.pointB.x * Math.cos(b1.bodyB.angle) - b1.pointB.y * Math.sin(b1.bodyB.angle));
+        const by2 = b1.bodyB.position.y + (b1.pointB.x * Math.sin(b1.bodyB.angle) + b1.pointB.y * Math.cos(b1.bodyB.angle));
+
+        // Determine which is shorter (= contracted)
+        const len1 = Math.hypot(bx - ax, by - ay);
+        const len2 = Math.hypot(bx2 - ax2, by2 - ay2);
+        const c1 = len1 < len2 ? muscleFlex : muscleExt;
+        const c2 = len2 < len1 ? muscleFlex : muscleExt;
+
+        ctx.strokeStyle = c1;
+        ctx.lineWidth = (isBest ? 3 : 2) * dpr;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.moveTo(SX(ax), SY(ay));
+        ctx.lineTo(SX(bx), SY(by));
+        ctx.stroke();
+
+        ctx.strokeStyle = c2;
+        ctx.beginPath();
+        ctx.moveTo(SX(ax2), SY(ay2));
+        ctx.lineTo(SX(bx2), SY(by2));
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+
+      // ── Draw bones ──
+      const drawBone = (body) => {
+        const x = SX(body.position.x);
+        const y = SY(body.position.y);
+        const w = (body.bounds.max.x - body.bounds.min.x) * Z;
+        const h = (body.bounds.max.y - body.bounds.min.y) * Z;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(body.angle);
+        ctx.fillStyle = boneColor;
+        ctx.strokeStyle = boneOutline;
+        ctx.lineWidth = (isBest ? 2 : 1) * dpr;
+        const r = 3 * dpr;
+        const x0 = -w / 2, y0 = -h / 2;
+        ctx.beginPath();
+        ctx.moveTo(x0 + r, y0);
+        ctx.lineTo(x0 + w - r, y0);
+        ctx.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + r);
+        ctx.lineTo(x0 + w, y0 + h - r);
+        ctx.quadraticCurveTo(x0 + w, y0 + h, x0 + w - r, y0 + h);
+        ctx.lineTo(x0 + r, y0 + h);
+        ctx.quadraticCurveTo(x0, y0 + h, x0, y0 + h - r);
+        ctx.lineTo(x0, y0 + r);
+        ctx.quadraticCurveTo(x0, y0, x0 + r, y0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      // Draw bones (head last to be on top)
+      drawBone(b.lFoot);
+      drawBone(b.rFoot);
+      drawBone(b.lShin);
+      drawBone(b.rShin);
+      drawBone(b.lThigh);
+      drawBone(b.rThigh);
+      drawBone(b.torso);
+      drawBone(b.head);
+
+      // ── Joint markers ──
+      const drawJoint = (body, local) => {
+        const wx = body.position.x + (local.x * Math.cos(body.angle) - local.y * Math.sin(body.angle));
+        const wy = body.position.y + (local.x * Math.sin(body.angle) + local.y * Math.cos(body.angle));
+        ctx.fillStyle = isBest ? '#fcd34d' : '#475569';
+        ctx.strokeStyle = '#0b0e15';
+        ctx.lineWidth = 1 * dpr;
+        ctx.beginPath();
+        ctx.arc(SX(wx), SY(wy), 2.5 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      };
+
+      // Ground & walls (faint)
+      ctx.strokeStyle = 'rgba(125, 133, 151, 0.5)';
+      ctx.lineWidth = 1 * dpr;
+      const laneHalf = CONFIG.laneWidth / 2;
+      ctx.beginPath();
+      ctx.moveTo(SX(c.originX - laneHalf), SY(CONFIG.groundY + 50));
+      ctx.lineTo(SX(c.originX - laneHalf), SY(CONFIG.groundY - 150));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(SX(c.originX + laneHalf), SY(CONFIG.groundY + 50));
+      ctx.lineTo(SX(c.originX + laneHalf), SY(CONFIG.groundY - 150));
+      ctx.stroke();
+      // ground line
+      ctx.strokeStyle = 'rgba(110, 231, 183, 0.3)';
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(0, SY(CONFIG.groundY));
+      ctx.lineTo(this.worldCanvas.width, SY(CONFIG.groundY));
+      ctx.stroke();
+
+      // Creature index label
+      ctx.fillStyle = isBest ? '#fcd34d' : 'rgba(125, 133, 151, 0.5)';
+      ctx.font = `bold ${isBest ? 13 : 11}px ui-monospace, monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        isBest ? `👑 #${c.laneIndex} · ${c.fitness().toFixed(1)}` : `#${c.laneIndex} · ${c.fitness().toFixed(1)}`,
+        SX(c.originX), SY(CONFIG.groundY - 130)
+      );
+
+      // Velocity bar
+      const speed = Math.min(1, Math.abs(b.head.position.x - c.lastPos.x) / 1.5);
+      ctx.fillStyle = isBest ? 'rgba(252, 211, 77, 0.6)' : 'rgba(110, 231, 183, 0.4)';
+      ctx.fillRect(SX(c.originX - 30), SY(CONFIG.groundY - 145), 60 * speed * dpr, 2 * dpr);
+    }
+
+    drawChart(history) {
+      const ctx = this.cctx;
+      const w = this.chartCanvas.width;
+      const h = this.chartCanvas.height;
+      ctx.fillStyle = '#0b0e15';
+      ctx.fillRect(0, 0, w, h);
+
+      if (history.length === 0) {
+        ctx.fillStyle = '#7d8597';
+        ctx.font = `${10 * this.dpr}px ui-monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('데이터 누적 중...', w / 2, h / 2);
+        return;
+      }
+
+      const maxV = Math.max(...history.map(d => d.best), 1);
+      const minV = 0;
+      const padX = 32 * this.dpr;
+      const padY = 14 * this.dpr;
+      const plotW = w - padX - 6 * this.dpr;
+      const plotH = h - padY * 2;
+
+      // Axes
+      ctx.strokeStyle = '#1f2436';
+      ctx.lineWidth = 1 * this.dpr;
+      ctx.beginPath();
+      ctx.moveTo(padX, padY);
+      ctx.lineTo(padX, h - padY);
+      ctx.lineTo(w - 6 * this.dpr, h - padY);
+      ctx.stroke();
+
+      // Y labels
+      ctx.fillStyle = '#4b5364';
+      ctx.font = `${9 * this.dpr}px ui-monospace`;
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 4; i++) {
+        const v = maxV * (1 - i / 4);
+        const y = padY + plotH * (i / 4);
+        ctx.fillText(v.toFixed(0), padX - 4 * this.dpr, y + 3 * this.dpr);
+        ctx.strokeStyle = 'rgba(31, 36, 54, 0.5)';
+        ctx.beginPath();
+        ctx.moveTo(padX, y);
+        ctx.lineTo(w - 6 * this.dpr, y);
+        ctx.stroke();
+      }
+
+      // X labels
+      ctx.textAlign = 'center';
+      const lastGen = history[history.length - 1].gen;
+      for (let i = 0; i <= 4; i++) {
+        const g = Math.round(lastGen * (i / 4));
+        const x = padX + plotW * (i / 4);
+        ctx.fillText(`#${g}`, x, h - padY + 12 * this.dpr);
+      }
+
+      // Average line (faint)
+      ctx.strokeStyle = 'rgba(125, 133, 151, 0.5)';
+      ctx.lineWidth = 1.5 * this.dpr;
+      ctx.beginPath();
+      history.forEach((d, i) => {
+        const x = padX + plotW * (i / Math.max(1, history.length - 1));
+        const y = padY + plotH * (1 - d.avg / maxV);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Best line
+      ctx.strokeStyle = '#6ee7b7';
+      ctx.lineWidth = 2 * this.dpr;
+      ctx.beginPath();
+      history.forEach((d, i) => {
+        const x = padX + plotW * (i / Math.max(1, history.length - 1));
+        const y = padY + plotH * (1 - d.best / maxV);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Points on best line
+      ctx.fillStyle = '#6ee7b7';
+      history.forEach((d, i) => {
+        if (i % Math.max(1, Math.floor(history.length / 30)) !== 0) return;
+        const x = padX + plotW * (i / Math.max(1, history.length - 1));
+        const y = padY + plotH * (1 - d.best / maxV);
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5 * this.dpr, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Title
+      ctx.fillStyle = '#7d8597';
+      ctx.font = `bold ${9 * this.dpr}px ui-sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillText('Best / Avg', 4 * this.dpr, 11 * this.dpr);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Main App
+  // ─────────────────────────────────────────────────────────────────
+  const worldCanvas = document.getElementById('world');
+  const chartCanvas = document.getElementById('chart');
+  const renderer = new Renderer(worldCanvas, chartCanvas);
+  const ga = new GA();
+
+  // UI refs
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    statGen: $('stat-gen'),
+    statProgress: $('stat-progress'),
+    statBestAll: $('stat-best-all'),
+    statBestCur: $('stat-best-cur'),
+    statAvg: $('stat-avg'),
+    ovGen: $('ov-gen'),
+    ovBest: $('ov-best'),
+    ctrlSpeed: $('ctrl-speed'),
+    lblSpeed: $('lbl-speed'),
+    ctrlTime: $('ctrl-time'),
+    lblTime: $('lbl-time'),
+    ctrlPop: $('ctrl-pop'),
+    lblPop: $('lbl-pop'),
+    ctrlMut: $('ctrl-mut'),
+    lblMut: $('lbl-mut'),
+    btnPlay: $('btn-play'),
+    btnStep: $('btn-step'),
+    btnReset: $('btn-reset'),
+    bestPanel: $('best-panel'),
+    geneList: $('gene-list'),
+    bestId: $('best-id'),
+  };
+
+  let playing = true;
+  let camera = { x: 0, y: 0, zoom: 1, target: 0 };
+
+  // Init
+  ga.reset(CONFIG.popSize);
+
+  function resizeCanvas() {
+    renderer.resize();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // Camera follows the best creature horizontally
+  function updateCamera() {
+    const fits = ga.creatures.map(c => c.fitness());
+    let bestIdx = 0;
+    for (let i = 1; i < fits.length; i++) if (fits[i] > fits[bestIdx]) bestIdx = i;
+    const bestCreature = ga.creatures[bestIdx];
+    // Track its head X
+    const targetX = bestCreature.bodies.head.position.x - worldCanvas.width / (2 * renderer.dpr * camera.zoom) + 40;
+    camera.target = Math.max(0, targetX);
+    camera.x += (camera.target - camera.x) * 0.08;
+    camera.y = CONFIG.groundY - worldCanvas.height / (2 * renderer.dpr * camera.zoom) - 50;
+    if (camera.y < 0) camera.y = 0;
+  }
+
+  function findBestCreature() {
+    let bestIdx = 0, bestFit = -1;
+    for (let i = 0; i < ga.creatures.length; i++) {
+      const f = ga.creatures[i].fitness();
+      if (f > bestFit) { bestFit = f; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+
+  function renderBestPanel() {
+    if (!ga.bestGenomeEver) {
+      els.bestPanel.style.display = 'none';
+      return;
+    }
+    els.bestPanel.style.display = '';
+    const g = ga.bestGenomeEver.genes;
+    const labels = ['Torse 길이', '머리 길이', '허벅지 길이', '종아리 길이', '발 길이', '뼈 두께'];
+    const items = [];
+    for (let i = 0; i < 6; i++) {
+      items.push(`<div><span class="lbl">${labels[i]}:</span> <span class="val">${g[i].toFixed(1)}</span></div>`);
+    }
+    for (let i = 0; i < N_MUSCLES; i++) {
+      const b = GENE.MUSCLE_BASE + i * 3;
+      const name = MUSCLE_NAMES[i].padEnd(14, ' ');
+      items.push(`<div><span class="lbl">M${i} ${name}</span></div>`);
+      items.push(`<div style="padding-left:14px">  amp <span class="val">${g[b].toFixed(2)}</span> · freq <span class="val">${g[b + 1].toFixed(2)}Hz</span> · φ <span class="val">${(g[b + 2] / Math.PI).toFixed(2)}π</span></div>`);
+    }
+    els.geneList.innerHTML = items.join('');
+    const bestIdx = findBestCreature();
+    els.bestId.textContent = `#${bestIdx} · ${ga.creatures[bestIdx].fitness().toFixed(1)}`;
+  }
+
+  // Main loop
+  let lastFrameTime = performance.now();
+  let frameCount = 0;
+  function loop(now) {
+    const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+    lastFrameTime = now;
+    frameCount++;
+
+    if (playing && ga.creatures.length > 0) {
+      const steps = Math.max(1, Math.round(CONFIG.speed));
+      for (let s = 0; s < steps; s++) {
+        const subDt = (1 / 60) * (CONFIG.speed / steps);
+        const done = ga.step(subDt);
+        if (done) {
+          const result = ga.evolve();
+          renderBestPanel();
+          break;
+        }
+      }
+    }
+
+    updateCamera();
+    const bestIdx = findBestCreature();
+    renderer.drawWorld(ga.creatures, bestIdx, camera.x, camera.y, camera.zoom);
+    renderer.drawChart(ga.history);
+
+    // Stats
+    const fits = ga.creatures.map(c => c.fitness());
+    const bestCur = Math.max(...fits);
+    const avgCur = fits.reduce((a, b) => a + b, 0) / fits.length;
+    const progress = Math.min(100, (ga.genTime / CONFIG.genTime) * 100);
+    els.statGen.textContent = ga.generation;
+    els.statProgress.textContent = progress.toFixed(0) + '%';
+    els.statBestAll.textContent = ga.bestEver.toFixed(1);
+    els.statBestCur.textContent = bestCur.toFixed(1);
+    els.statAvg.textContent = avgCur.toFixed(1);
+    els.ovGen.textContent = ga.generation;
+    els.ovBest.textContent = bestCur.toFixed(1);
+
+    requestAnimationFrame(loop);
+  }
+
+  // Controls
+  els.btnPlay.addEventListener('click', () => {
+    playing = !playing;
+    els.btnPlay.textContent = playing ? '⏸ 일시정지' : '▶ 재생';
+    els.btnPlay.classList.toggle('primary', playing);
+  });
+  els.btnStep.addEventListener('click', () => {
+    if (!playing) {
+      // Force generation to end
+      while (ga.genTime < CONFIG.genTime && ga.creatures.some(c => c.alive)) {
+        ga.step(1 / 60);
+      }
+      ga.evolve();
+      renderBestPanel();
+    }
+  });
+  els.btnReset.addEventListener('click', () => {
+    const popSize = parseInt(els.ctrlPop.value);
+    ga.reset(popSize);
+    renderBestPanel();
+  });
+
+  els.ctrlSpeed.addEventListener('input', (e) => {
+    CONFIG.speed = parseFloat(e.target.value);
+    els.lblSpeed.textContent = CONFIG.speed.toFixed(2) + '×';
+  });
+  els.ctrlTime.addEventListener('input', (e) => {
+    CONFIG.genTime = parseInt(e.target.value);
+    els.lblTime.textContent = CONFIG.genTime + 's';
+  });
+  els.ctrlPop.addEventListener('input', (e) => {
+    const v = parseInt(e.target.value);
+    CONFIG.popSize = v;
+    els.lblPop.textContent = v;
+  });
+  els.ctrlMut.addEventListener('input', (e) => {
+    CONFIG.mutRate = parseFloat(e.target.value);
+    els.lblMut.textContent = (CONFIG.mutRate * 100).toFixed(0) + '%';
+  });
+
+  // Mouse wheel zoom (Ctrl+wheel) or drag-pan
+  let dragging = false, lastMX = 0;
+  worldCanvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      camera.zoom = Math.max(0.4, Math.min(2.5, camera.zoom * factor));
+    } else {
+      camera.x = Math.max(0, camera.x + e.deltaY * 0.5);
+    }
+  }, { passive: false });
+
+  worldCanvas.addEventListener('mousedown', (e) => { dragging = true; lastMX = e.clientX; });
+  worldCanvas.addEventListener('mousemove', (e) => {
+    if (dragging) {
+      const dx = (e.clientX - lastMX) / renderer.dpr;
+      camera.x = Math.max(0, camera.x - dx / camera.zoom);
+      lastMX = e.clientX;
+    }
+  });
+  worldCanvas.addEventListener('mouseup', () => dragging = false);
+  worldCanvas.addEventListener('mouseleave', () => dragging = false);
+
+  // Initialize labels
+  els.lblSpeed.textContent = CONFIG.speed.toFixed(2) + '×';
+  els.lblTime.textContent = CONFIG.genTime + 's';
+  els.lblPop.textContent = CONFIG.popSize;
+  els.lblMut.textContent = (CONFIG.mutRate * 100).toFixed(0) + '%';
+
+  // Auto-zoom out if many creatures
+  camera.zoom = Math.min(1, 1000 / (CONFIG.laneWidth * CONFIG.popSize + 200));
+
+  renderBestPanel();
+  requestAnimationFrame(loop);
+
+})();
+</script>
 </body>
 </html>
