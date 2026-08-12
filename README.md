@@ -11,7 +11,7 @@
 
 ## 🎬 라이브 데모
 
-> **👉 [https://genetic-walking.vercel.app/](https://genetic-walking.vercel.app/)** — 브라우저에서 바로 실행
+> **👉 [https://sigco3111.github.io/genetic-walking/](https://sigco3111.github.io/genetic-walking/)** — 브라우저에서 바로 실행
 
 | | |
 |---|---|
@@ -267,7 +267,7 @@ bit-perfect 배포 검증 4축 (`canvas-static-site-pipeline` §5.5 표준):
 검증 스크립트:
 ```bash
 curl -sS -o /dev/null -w "HTTP %{http_code} | %{size_download}B\n" \
-  -A "Mozilla/5.0" https://genetic-walking.vercel.app/
+  -A "Mozilla/5.0" https://sigco3111.github.io/genetic-walking/
 # 기대값: HTTP 200 | 54063B
 ```
 
