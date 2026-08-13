@@ -11,11 +11,11 @@ This project shows **random-shaped stick creatures with joints and muscles** try
 
 ## 🎬 Live Demo
 
-> **👉 [https://genetic-walking.vercel.app/](https://genetic-walking.vercel.app/)** — runs directly in the browser
+> **👉 [https://sigco3111.github.io/genetic-walking/](https://sigco3111.github.io/genetic-walking/)** — runs directly in the browser
 
 | | |
 |---|---|
-| ![Demo](https://img.shields.io/badge/Live-Demo-6ee7b7?style=for-the-badge&logo=vercel&logoColor=white) | [![Repo](https://img.shields.io/badge/GitHub-sigco3111%2Fgenetic--walking-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sigco3111/genetic-walking) |
+| ![Demo](https://img.shields.io/badge/Live-Demo-222222?style=for-the-badge&logo=githubpages&logoColor=white) | [![Repo](https://img.shields.io/badge/GitHub-sigco3111%2Fgenetic--walking-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sigco3111/genetic-walking) |
 | ![Status](https://img.shields.io/badge/Status-Live-22C55E?style=flat-square) | ![Stack](https://img.shields.io/badge/Stack-Vanilla_JS-F7DF1E?style=flat-square&logo=javascript&logoColor=black) |
 | ![License](https://img.shields.io/badge/License-MIT-F1C40F?style=flat-square) | ![Deps](https://img.shields.io/badge/Dependencies-1-9CA3AF?style=flat-square) (Matter.js CDN) |
 
@@ -84,7 +84,7 @@ python3 -m http.server 8000
 # → http://localhost:8000
 ```
 
-### Option 3: Live demo (Vercel)
+### Option 3: Live demo (GitHub Pages)
 Open the URL in the "Live Demo" section above.
 
 ---
@@ -269,7 +269,7 @@ Bit-perfect deployment verification (4 axes, `canvas-static-site-pipeline` §5.5
 Verification script:
 ```bash
 curl -sS -o /dev/null -w "HTTP %{http_code} | %{size_download}B\n" \
-  -A "Mozilla/5.0" https://genetic-walking.vercel.app/
+  -A "Mozilla/5.0" https://sigco3111.github.io/genetic-walking/
 # expected: HTTP 200 | 54063B
 ```
 
@@ -281,7 +281,7 @@ curl -sS -o /dev/null -w "HTTP %{http_code} | %{size_download}B\n" \
 |---|---|---|
 | Bootstrap | 2026-07-09 | README scaffold + placeholder `index.html`, hand off to OpenCode |
 | Implementation | 2026-07-09 | OpenCode implements Matter.js + GA + visualization as single HTML |
-| Full cycle | 2026-07-09 | Deploy to Vercel + expand README to v1.0 (this document) |
+| Full cycle | 2026-07-09 | Deploy to GitHub Pages + expand README to v1.0 (this document) |
 
 ---
 

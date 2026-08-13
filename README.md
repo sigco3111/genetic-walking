@@ -15,7 +15,7 @@
 
 | | |
 |---|---|
-| ![Demo](https://img.shields.io/badge/Live-Demo-6ee7b7?style=for-the-badge&logo=vercel&logoColor=white) | [![Repo](https://img.shields.io/badge/GitHub-sigco3111%2Fgenetic--walking-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sigco3111/genetic-walking) |
+| ![Demo](https://img.shields.io/badge/Live-Demo-222222?style=for-the-badge&logo=githubpages&logoColor=white) | [![Repo](https://img.shields.io/badge/GitHub-sigco3111%2Fgenetic--walking-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sigco3111/genetic-walking) |
 | ![Status](https://img.shields.io/badge/Status-Live-22C55E?style=flat-square) | ![Stack](https://img.shields.io/badge/Stack-Vanilla_JS-F7DF1E?style=flat-square&logo=javascript&logoColor=black) |
 | ![License](https://img.shields.io/badge/License-MIT-F1C40F?style=flat-square) | ![Deps](https://img.shields.io/badge/Dependencies-1-9CA3AF?style=flat-square) (Matter.js CDN) |
 
@@ -84,7 +84,7 @@ python3 -m http.server 8000
 # → http://localhost:8000
 ```
 
-### 방법 3: 라이브 데모 (Vercel)
+### 방법 3: 라이브 데모 (GitHub Pages)
 위 "라이브 데모" 섹션의 URL을 브라우저에서 열기
 
 ---
@@ -279,7 +279,7 @@ curl -sS -o /dev/null -w "HTTP %{http_code} | %{size_download}B\n" \
 |---|---|---|
 | Bootstrap | 2026-07-09 | README 1차 scaffolding + placeholder index.html, OpenCode 인계 |
 | 구현 | 2026-07-09 | OpenCode가 Matter.js + GA + 시각화 단일 HTML로 본체 구현 |
-| Full cycle | 2026-07-09 | Vercel 배포 + README v1.0 다층화 (이 문서) |
+| Full cycle | 2026-07-09 | GitHub Pages 배포 + README v1.0 다층화 (이 문서) |
 
 ---
 
